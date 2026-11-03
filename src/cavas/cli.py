@@ -6,7 +6,10 @@ import argparse
 import sys
 from pathlib import Path
 
-from .core import DEFAULT_MODEL, iter_images, output_path_for, process_file
+from .core import (
+    DEFAULT_MODEL, ENV_OUTPUT_DIR, ICLOUD_CANDIDATES, dated_dir, default_output_root,
+    iter_images, output_path_for, process_file, unique_path,
+)
 
 MODELS = [
     "u2net",              # 범용 (기본)
@@ -27,7 +30,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("inputs", nargs="+", type=Path, help="이미지 파일 또는 폴더")
     p.add_argument("-o", "--output", type=Path,
-                   help="출력 경로. 입력이 파일 하나면 .png 파일 경로도 가능, 아니면 폴더 (기본: 원본 옆에 *_nobg.png)")
+                   help="출력 경로. 입력이 파일 하나면 .png 파일 경로도 가능, 아니면 폴더 "
+                        "(기본: iCloud Drive/다운로드/8.캔버스/오늘날짜/)")
+    p.add_argument("--here", action="store_true", help="원본 이미지와 같은 폴더에 저장")
     p.add_argument("-m", "--model", default=DEFAULT_MODEL, choices=MODELS, help=f"사용할 모델 (기본: {DEFAULT_MODEL})")
     p.add_argument("-a", "--alpha-matting", action="store_true", help="머리카락 등 경계를 더 부드럽게 (느림)")
     p.add_argument("-c", "--crop", action="store_true", help="피사체 크기에 맞게 여백 잘라내기")
@@ -42,6 +47,18 @@ def main(argv: list[str] | None = None) -> int:
     opts = dict(model=args.model, alpha_matting=args.alpha_matting,
                 only_mask=args.mask, crop=args.crop, padding=args.padding)
 
+    output = args.output
+    if output is None and not args.here:
+        root = default_output_root()
+        if root is None:
+            tried = "\n  ".join(str(c) for c in ICLOUD_CANDIDATES)
+            print(f"[오류] 기본 저장 폴더를 찾을 수 없습니다. 아래 폴더 중 하나를 만들어 주세요:\n  {tried}\n"
+                  f"또는 -o 로 저장 위치를 지정하거나, 환경변수 {ENV_OUTPUT_DIR} 를 설정하세요.",
+                  file=sys.stderr)
+            return 1
+        output = dated_dir(root)
+        print(f"저장 위치: {output}")
+
     jobs: list[tuple[Path, Path]] = []
     for inp in args.inputs:
         if not inp.exists():
@@ -49,17 +66,24 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         single_file_target = (
             len(args.inputs) == 1 and inp.is_file()
-            and args.output is not None and args.output.suffix.lower() == ".png"
+            and output is not None and output.suffix.lower() == ".png"
         )
         for src in iter_images(inp, recursive=args.recursive):
             if single_file_target:
-                dst = args.output
+                dst = output
             else:
-                out_dir = args.output
+                out_dir = output
                 if out_dir is not None and inp.is_dir():
                     out_dir = out_dir / src.parent.relative_to(inp)
                 dst = output_path_for(src, out_dir)
             jobs.append((src, dst))
+
+    # 이미 있는 파일이나 같은 실행 안에서 이름이 겹치면 덮어쓰지 않도록 번호를 붙인다.
+    taken: set[Path] = set()
+    for i, (src, dst) in enumerate(jobs):
+        dst = unique_path(dst, taken)
+        taken.add(dst)
+        jobs[i] = (src, dst)
 
     if not jobs:
         print("[알림] 처리할 이미지가 없습니다.", file=sys.stderr)

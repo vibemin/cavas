@@ -23,3 +23,30 @@ def test_iter_images_skips_outputs_and_non_images(tmp_path):
         (tmp_path / name).write_bytes(b"")
     found = [p.name for p in iter_images(tmp_path)]
     assert found == ["a.jpg", "b.PNG"]
+
+
+def test_unique_path(tmp_path):
+    from cavas.core import unique_path
+
+    p = tmp_path / "a_nobg.png"
+    assert unique_path(p) == p
+    p.write_bytes(b"")
+    assert unique_path(p) == tmp_path / "a_nobg_2.png"
+    assert unique_path(p, {tmp_path / "a_nobg_2.png"}) == tmp_path / "a_nobg_3.png"
+
+
+def test_default_output_root_and_dated_dir(tmp_path, monkeypatch):
+    from datetime import date
+
+    from cavas import core
+
+    monkeypatch.setenv(core.ENV_OUTPUT_DIR, str(tmp_path))
+    assert core.default_output_root() == tmp_path
+    assert core.dated_dir(tmp_path, date(2026, 11, 3)) == tmp_path / "2026-11-03"
+
+    monkeypatch.delenv(core.ENV_OUTPUT_DIR)
+    icloud = tmp_path / "다운로드" / "8.캔버스"
+    monkeypatch.setattr(core, "ICLOUD_CANDIDATES", [tmp_path / "Downloads" / "8.캔버스", icloud])
+    assert core.default_output_root() is None
+    icloud.mkdir(parents=True)
+    assert core.default_output_root() == icloud

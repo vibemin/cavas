@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+from datetime import date
 from functools import lru_cache
 from pathlib import Path
 from typing import Iterator
@@ -10,6 +12,40 @@ from PIL import Image, ImageOps
 
 SUPPORTED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
 DEFAULT_MODEL = "u2net"
+
+# macOS iCloud Drive 실제 경로
+ICLOUD_DRIVE = Path.home() / "Library" / "Mobile Documents" / "com~apple~CloudDocs"
+# Finder에서 '다운로드'로 보이는 폴더는 실제 이름이 Downloads일 수도, 다운로드일 수도 있다.
+ICLOUD_CANDIDATES = [
+    ICLOUD_DRIVE / "Downloads" / "8.캔버스",
+    ICLOUD_DRIVE / "다운로드" / "8.캔버스",
+]
+ENV_OUTPUT_DIR = "CAVAS_OUTPUT_DIR"
+
+
+def default_output_root() -> Path | None:
+    """기본 저장 위치. 환경변수 CAVAS_OUTPUT_DIR > iCloud Drive/다운로드/8.캔버스 순."""
+    env = os.environ.get(ENV_OUTPUT_DIR)
+    if env:
+        return Path(env).expanduser()
+    for cand in ICLOUD_CANDIDATES:
+        if cand.is_dir():
+            return cand
+    return None
+
+
+def dated_dir(root: Path, day: date | None = None) -> Path:
+    """root/YYYY-MM-DD 폴더 경로."""
+    return root / (day or date.today()).isoformat()
+
+
+def unique_path(path: Path, taken: set[Path] | frozenset[Path] = frozenset()) -> Path:
+    """같은 이름의 파일이 있거나 taken에 있으면 _2, _3 ... 을 붙여 덮어쓰지 않게 한다."""
+    cand, i = path, 2
+    while cand.exists() or cand in taken:
+        cand = path.with_name(f"{path.stem}_{i}{path.suffix}")
+        i += 1
+    return cand
 
 
 @lru_cache(maxsize=4)
