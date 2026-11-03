@@ -28,6 +28,17 @@ iCloud Drive/다운로드/8.캔버스/
 - 다른 곳을 기본 위치로 쓰려면 환경변수 `CAVAS_OUTPUT_DIR`를 설정하세요.
 - `-o`로 직접 지정하거나 `--here`로 원본 옆에 저장할 수도 있습니다.
 
+## 기본 동작
+
+`cavas 이미지.jpg` 한 줄이면 다음이 모두 적용됩니다.
+
+1. **배경 제거** — 테두리가 단색(흰 배경 일러스트·스티커 시트)이면 배경색을 지우는 방식,
+   사진이면 AI 모델(rembg)을 자동으로 선택 (`--method color|ai`로 직접 지정 가능)
+2. **물체별 분리** — 한 이미지에 물체가 여러 개면 하나씩 따로 저장 (`이미지_nobg_1.png`, `_2.png` …,
+   위→아래, 왼쪽→오른쪽 순서). 별빛·김처럼 살짝 떨어진 조각은 가까운 물체에 붙음. 끄려면 `--no-split`
+3. **크기 맞춤** — 각 결과의 긴 변(가로/세로 중 큰 쪽)을 3000px로. 바꾸려면 `-s 2000`, 원본 크기는 `-s 0`
+4. **투명 배경 PNG**로 저장
+
 ## 사용법
 
 ```bash
@@ -54,9 +65,13 @@ cavas portrait.jpg -a -m birefnet-portrait
 |---|---|
 | `-o, --output` | 출력 파일(.png) 또는 폴더 (기본: 8.캔버스/오늘날짜) |
 | `--here` | 원본 이미지와 같은 폴더에 저장 |
+| `-s, --size` | 긴 변 크기 px (기본 3000, 0이면 원본 크기) |
+| `--no-split` | 물체가 여러 개여도 한 장으로 저장 |
+| `--method` | `auto`(기본) / `ai`(사진) / `color`(흰 배경 일러스트) |
 | `-m, --model` | `u2net`(기본), `u2netp`, `u2net_human_seg`, `isnet-general-use`, `isnet-anime`, `silueta`, `birefnet-general`, `birefnet-portrait` |
 | `-a, --alpha-matting` | 경계를 더 정교하게 처리 (느림) |
-| `-c, --crop` / `--padding N` | 투명 여백 잘라내기 |
+| `-c, --crop` | 투명 여백 잘라내기 (`-s 0`일 때만 필요, 그 외엔 자동) |
+| `--padding N` | 피사체 주변에 투명 여백 N px |
 | `--mask` | 흑백 마스크만 저장 |
 | `-r, --recursive` | 하위 폴더까지 처리 |
 

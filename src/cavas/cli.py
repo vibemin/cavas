@@ -6,6 +6,8 @@ import argparse
 import sys
 from pathlib import Path
 
+from PIL import Image
+
 from .core import (
     DEFAULT_MODEL, ENV_OUTPUT_DIR, ICLOUD_CANDIDATES, dated_dir, default_output_root,
     iter_images, output_path_for, process_file, unique_path,
@@ -34,9 +36,15 @@ def build_parser() -> argparse.ArgumentParser:
                         "(기본: iCloud Drive/다운로드/8.캔버스/오늘날짜/)")
     p.add_argument("--here", action="store_true", help="원본 이미지와 같은 폴더에 저장")
     p.add_argument("-m", "--model", default=DEFAULT_MODEL, choices=MODELS, help=f"사용할 모델 (기본: {DEFAULT_MODEL})")
+    p.add_argument("--method", default="auto", choices=["auto", "ai", "color"],
+                   help="배경 제거 방식: auto(기본, 자동 선택) / ai(사진) / color(흰 배경 일러스트)")
     p.add_argument("-a", "--alpha-matting", action="store_true", help="머리카락 등 경계를 더 부드럽게 (느림)")
-    p.add_argument("-c", "--crop", action="store_true", help="피사체 크기에 맞게 여백 잘라내기")
-    p.add_argument("--padding", type=int, default=0, help="--crop 사용 시 남길 여백(px)")
+    p.add_argument("-s", "--size", type=int, default=3000,
+                   help="결과의 긴 변(가로/세로 중 큰 쪽) 크기 px (기본: 3000, 0이면 원본 크기 유지)")
+    p.add_argument("--no-split", dest="split", action="store_false",
+                   help="한 이미지에 물체가 여러 개여도 나누지 않고 한 장으로 저장")
+    p.add_argument("-c", "--crop", action="store_true", help="피사체 크기에 맞게 여백 잘라내기 (--size 0 일 때만 의미 있음)")
+    p.add_argument("--padding", type=int, default=0, help="피사체 주변에 남길 투명 여백(px)")
     p.add_argument("--mask", action="store_true", help="결과 대신 흑백 마스크만 저장")
     p.add_argument("-r", "--recursive", action="store_true", help="폴더 하위까지 처리")
     return p
@@ -45,7 +53,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     opts = dict(model=args.model, alpha_matting=args.alpha_matting,
-                only_mask=args.mask, crop=args.crop, padding=args.padding)
+                only_mask=args.mask, crop=args.crop, padding=args.padding,
+                split=args.split, size=args.size, method=args.method)
 
     output = args.output
     if output is None and not args.here:
@@ -92,8 +101,10 @@ def main(argv: list[str] | None = None) -> int:
     failed = 0
     for i, (src, dst) in enumerate(jobs, 1):
         try:
-            process_file(src, dst, **opts)
-            print(f"[{i}/{len(jobs)}] {src} -> {dst}")
+            saved = process_file(src, dst, **opts)
+            for out in saved:
+                with Image.open(out) as im:
+                    print(f"[{i}/{len(jobs)}] {src} -> {out} ({im.width}x{im.height})")
         except Exception as e:  # noqa: BLE001
             failed += 1
             print(f"[{i}/{len(jobs)}] 실패: {src} ({e})", file=sys.stderr)

@@ -50,3 +50,22 @@ def test_default_output_root_and_dated_dir(tmp_path, monkeypatch):
     assert core.default_output_root() is None
     icloud.mkdir(parents=True)
     assert core.default_output_root() == icloud
+
+
+def test_resize_long_side():
+    from cavas.core import resize_long_side
+
+    assert resize_long_side(Image.new("RGBA", (400, 200)), 3000).size == (3000, 1500)
+    assert resize_long_side(Image.new("RGBA", (1000, 4000)), 3000).size == (750, 3000)
+
+
+def test_split_objects_separates_and_orders():
+    from cavas.core import split_objects
+
+    img = Image.new("RGBA", (1000, 500), (0, 0, 0, 0))
+    img.paste((255, 0, 0, 255), (600, 100, 900, 400))   # 오른쪽 큰 물체
+    img.paste((0, 255, 0, 255), (100, 150, 300, 350))   # 왼쪽 물체
+    img.paste((0, 0, 255, 255), (5, 5, 7, 7))           # 노이즈 (버려져야 함)
+    parts = split_objects(img)
+    assert [p.size for p in parts] == [(200, 200), (300, 300)]
+    assert parts[0].getpixel((100, 100)) == (0, 255, 0, 255)
