@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cavas"
+version = "0.1.0"
+description = "이미지 배경을 제거(누끼)하고 투명 배경 PNG로 저장하는 도구"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "rembg[cpu]>=2.0.50",
+    "Pillow>=10.0",
+]
+
+[project.optional-dependencies]
+gpu = ["rembg[gpu]>=2.0.50"]
+dev = ["pytest>=8"]
+
+[project.scripts]
+cavas = "cavas.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
